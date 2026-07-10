@@ -2,7 +2,10 @@
 set -u
 
 event="${1:-unknown}"
-out="${QODER_OTEL_PROBE_OUT:-$HOME/.qoder-cn/qoder-otel-native-hook-events.jsonl}"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+plugin_root="$(cd "$script_dir/.." && pwd)"
+qoder_home_default="$(cd "$plugin_root/../../../../.." && pwd)"
+out="${QODER_OTEL_PROBE_OUT:-$qoder_home_default/qoder-otel-native-hook-events.jsonl}"
 tmp="$(mktemp)"
 cat > "$tmp"
 

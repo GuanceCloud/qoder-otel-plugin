@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { resolveQoderLayout } from "./qoder-paths.js";
 
 function readJsonIfExists(file) {
   try {
@@ -97,8 +98,9 @@ function parseHeaders(value) {
 export function resolveConfig(options = {}) {
   const home = options.home ?? process.env.HOME ?? os.homedir();
   const cwd = options.cwd ?? process.cwd();
-  const globalConfig = readJsonIfExists(options.configFile ?? path.join(home, ".qoder-cn", "gtrace.json"));
-  const localConfig = readJsonIfExists(path.join(cwd, ".qoder-cn", "gtrace.json"));
+  const layout = resolveQoderLayout({ home, cwd, env: process.env, qoderHome: options.qoderHome, configRoot: options.configRoot, pluginRoot: options.pluginRoot, variant: options.variant });
+  const globalConfig = readJsonIfExists(options.configFile ?? layout.globalConfigFile);
+  const localConfig = readJsonIfExists(path.join(cwd, layout.localConfigDirName, "gtrace.json"));
   const merged = {
     enabled: false,
     endpoint: undefined,
@@ -145,6 +147,6 @@ export function resolveConfig(options = {}) {
     max_chars: parseInteger(merged.max_chars) ?? 20_000,
     debug: parseBoolean(merged.debug) ?? false,
     fail_on_error: parseBoolean(merged.fail_on_error) ?? false,
-    hook_log_file: merged.hook_log_file ?? path.join(home, ".qoder-cn", "qoder-otel-hook.log"),
+    hook_log_file: merged.hook_log_file ?? layout.hookLogFile,
   };
 }

@@ -56,6 +56,7 @@ Examples:
 
 Install and upgrade options are passed to scripts/install.sh:
   --type gtrace|otlp
+  --variant cn|global|auto
   --endpoint URL
   --x-token TOKEN
   --trace-path PATH
@@ -78,7 +79,8 @@ Environment:
   QODER_OTEL_ARCHIVE_URL         Full release tar.gz URL override
   QODER_OTEL_NODE                Node.js executable path when node is not in PATH
   QODER_OTEL_TYPE                Config preset. Values: gtrace, otlp
-  QODER_HOME                     Qoder home. Default: ~/.qoder-cn
+  QODER_OTEL_VARIANT             Qoder layout. Values: cn, global, auto
+  QODER_HOME                     Qoder home. Overrides --variant derived home.
 HELP
 }
 

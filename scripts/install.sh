@@ -2,14 +2,16 @@
 set -euo pipefail
 
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-QODER_HOME="${QODER_HOME:-$HOME/.qoder-cn}"
+USER_HOME="${HOME:-$(cd ~ && pwd)}"
+QODER_HOME="${QODER_HOME:-}"
 MARKETPLACE_NAME="${MARKETPLACE_NAME:-qoder-marketplace}"
 PLUGIN_NAME="${PLUGIN_NAME:-qoder-otel-plugin}"
 LEGACY_PLUGIN_NAME="${LEGACY_PLUGIN_NAME:-qoder-otel-probe}"
-CONFIG_FILE="${QODER_GTRACE_CONFIG:-$QODER_HOME/gtrace.json}"
+CONFIG_FILE="${QODER_GTRACE_CONFIG:-}"
 WRITE_CONFIG=1
 KEEP_OLD=0
 INSTALL_TYPE="${QODER_OTEL_TYPE:-otlp}"
+INSTALL_VARIANT="${QODER_OTEL_VARIANT:-${QODER_VARIANT:-auto}}"
 ENDPOINT="${GTRACE_ENDPOINT:-${QODER_OTEL_ENDPOINT:-}}"
 TRACE_PATH="${GTRACE_TRACE_PATH:-${QODER_OTEL_TRACE_PATH:-}}"
 METRICS_PATH="${GTRACE_METRICS_PATH:-${QODER_OTEL_METRICS_PATH:-}}"
@@ -65,27 +67,72 @@ check_node_version() {
   fi
 }
 
+resolve_variant() {
+  local candidate="${1:-auto}"
+  candidate="$(printf '%s' "$candidate" | tr '[:upper:]' '[:lower:]')"
+  case "$candidate" in
+    cn|qoder-cn)
+      printf 'cn'
+      ;;
+    global|qoder|non-cn|intl|international)
+      printf 'global'
+      ;;
+    auto|"")
+      if [[ -n "$QODER_HOME" ]]; then
+        case "$(basename "$QODER_HOME")" in
+          .qoder-cn|qoder-cn) printf 'cn'; return 0 ;;
+          .qoder|qoder) printf 'global'; return 0 ;;
+        esac
+      fi
+      if [[ -d "$USER_HOME/.qoder" && ! -d "$USER_HOME/.qoder-cn" ]]; then
+        printf 'global'
+      else
+        printf 'cn'
+      fi
+      ;;
+    *)
+      echo "Unsupported --variant: $candidate. Supported values: cn, global, auto" >&2
+      exit 2
+      ;;
+  esac
+}
+
+resolve_qoder_home() {
+  local variant="$1"
+  if [[ -n "$QODER_HOME" ]]; then
+    printf '%s' "$QODER_HOME"
+    return 0
+  fi
+  if [[ "$variant" == "global" ]]; then
+    printf '%s' "$USER_HOME/.qoder"
+  else
+    printf '%s' "$USER_HOME/.qoder-cn"
+  fi
+}
+
 usage() {
   cat <<HELP
 Usage:
-  scripts/install.sh [--type gtrace|otlp] [--endpoint URL] [--x-token TOKEN] [--trace-path PATH] [--metrics-path PATH] [--header KEY=VALUE] [--tag KEY=VALUE] [--no-config] [--keep-old]
+  scripts/install.sh [--type gtrace|otlp] [--variant cn|global|auto] [--endpoint URL] [--x-token TOKEN] [--trace-path PATH] [--metrics-path PATH] [--header KEY=VALUE] [--tag KEY=VALUE] [--no-config] [--keep-old]
 
 Options:
   --type         Config preset. Default: otlp. Values: gtrace, otlp.
+  --variant      Qoder layout. `cn` uses ~/.qoder-cn and ~/.config/QoderCN. `global` uses ~/.qoder and ~/.config/Qoder. Default: auto.
   --endpoint     Receiver base URL, for example https://llm-openway.guance.com.
   --x-token      Dataway/GTrace X-Token. Written to gtrace.json as header X-Token.
   --trace-path   Trace route. Overrides the selected type default.
   --metrics-path Metrics route. Overrides the selected type default.
   --header       Extra HTTP header as KEY=VALUE. Can be repeated.
   --tag          Resource attribute as KEY=VALUE. Can be repeated.
-  --config-file  Config file. Default: ~/.qoder-cn/gtrace.json.
+  --config-file  Config file. Default: <QODER_HOME>/gtrace.json.
   --no-config    Install plugin files only; do not create or update gtrace.json.
   --keep-old      Keep older installed versions. Default behavior removes old qoder-otel-plugin versions.
 
 Environment:
-  QODER_HOME          Qoder home. Default: ~/.qoder-cn
+  QODER_HOME          Qoder home. Overrides --variant derived home.
   QODER_OTEL_NODE     Node.js executable path when node is not in PATH
   QODER_OTEL_TYPE     Same as --type
+  QODER_OTEL_VARIANT  Same as --variant
   QODER_OTEL_ENDPOINT Same as --endpoint
   GTRACE_ENDPOINT     Same as --endpoint
   QODER_OTEL_TRACE_PATH / GTRACE_TRACE_PATH
@@ -102,6 +149,13 @@ while [[ "$#" -gt 0 ]]; do
       ;;
     --type=*)
       INSTALL_TYPE="${1#*=}"
+      ;;
+    --variant)
+      shift; [[ "$#" -gt 0 ]] || { echo "--variant requires a value" >&2; exit 2; }
+      INSTALL_VARIANT="$1"
+      ;;
+    --variant=*)
+      INSTALL_VARIANT="${1#*=}"
       ;;
     --endpoint)
       shift; [[ "$#" -gt 0 ]] || { echo "--endpoint requires a URL" >&2; exit 2; }
@@ -177,6 +231,9 @@ fi
 
 NODE_BIN="$(resolve_node)"
 check_node_version "$NODE_BIN"
+INSTALL_VARIANT="$(resolve_variant "$INSTALL_VARIANT")"
+QODER_HOME="$(resolve_qoder_home "$INSTALL_VARIANT")"
+CONFIG_FILE="${CONFIG_FILE:-$QODER_HOME/gtrace.json}"
 
 case "$INSTALL_TYPE" in
   gtrace)

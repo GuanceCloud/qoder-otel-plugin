@@ -18,7 +18,9 @@ It reads Qoder hook input and transcript files, enriches them with local Qoder S
 ## Requirements
 
 - Linux/macOS
-- Qoder CN local data layout under `~/.qoder-cn` and `~/.config/QoderCN`
+- Qoder local data layout:
+  - CN: `~/.qoder-cn` and `~/.config/QoderCN`
+  - non-CN: `~/.qoder` and `~/.config/Qoder`
 - Node.js >= 22
 
 ## Install For Users
@@ -29,6 +31,7 @@ Users do not need to download the source tree. Install from a release asset:
 curl -fsSL https://github.com/GuanceCloud/qoder-otel-plugin/releases/latest/download/install-release.sh \
   | bash -s -- latest \
       --type gtrace \
+      --variant cn \
       --endpoint https://llm-openway.guance.com \
       --x-token <token>
 ```
@@ -39,6 +42,7 @@ Install a specific version:
 curl -fsSL https://github.com/GuanceCloud/qoder-otel-plugin/releases/latest/download/install-release.sh \
   | bash -s -- v0.1.0 \
       --type gtrace \
+      --variant cn \
       --endpoint https://llm-openway.guance.com \
       --x-token <token>
 ```
@@ -49,7 +53,7 @@ To upgrade plugin files while keeping the existing `~/.qoder-cn/gtrace.json`:
 
 ```bash
 curl -fsSL https://github.com/GuanceCloud/qoder-otel-plugin/releases/latest/download/install-release.sh \
-  | bash -s -- latest --type gtrace --no-config
+  | bash -s -- latest --type gtrace --variant cn --no-config
 ```
 
 Restart Qoder after install or upgrade so hooks are reloaded.
@@ -62,6 +66,7 @@ From a local source checkout:
 cd qoder-otel-plugin
 bash scripts/install.sh \
   --type gtrace \
+  --variant cn \
   --endpoint https://llm-openway.guance.com \
   --x-token <token>
 ```
@@ -77,7 +82,7 @@ Both installers write:
 Runtime config lives at:
 
 ```text
-~/.qoder-cn/gtrace.json
+<QODER_HOME>/gtrace.json
 ```
 
 See [docs/configuration.md](docs/configuration.md) and [config/gtrace.example.json](config/gtrace.example.json).
@@ -105,8 +110,14 @@ bash scripts/install.sh --no-config
 Use a custom Qoder home:
 
 ```bash
-QODER_HOME=/path/to/.qoder-cn bash scripts/install.sh
+QODER_HOME=/path/to/.qoder bash scripts/install.sh
 ```
+
+Variant selection:
+
+- `--variant cn`: uses `~/.qoder-cn` and `~/.config/QoderCN`
+- `--variant global`: uses `~/.qoder` and `~/.config/Qoder`
+- `--variant auto`: infers from `QODER_HOME` or existing local directories, defaulting to `cn` when ambiguous
 
 ## Build Release
 

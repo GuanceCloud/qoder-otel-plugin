@@ -3,7 +3,7 @@
 `qoder-otel-plugin` reads its runtime configuration from:
 
 ```text
-~/.qoder-cn/gtrace.json
+<QODER_HOME>/gtrace.json
 ```
 
 Minimal configuration:
@@ -39,9 +39,25 @@ Local state and logs:
 
 | Path | Purpose |
 | --- | --- |
-| `~/.qoder-cn/qoder-otel-hook.log` | Upload and parsing diagnostics. |
-| `~/.qoder-cn/qoder-otel-native-hook-events.jsonl` | Raw Qoder hook events captured by the plugin. |
-| `~/.qoder-cn/qoder-otel-state/` | Duplicate-upload guards. |
+| `<QODER_HOME>/qoder-otel-hook.log` | Upload and parsing diagnostics. |
+| `<QODER_HOME>/qoder-otel-native-hook-events.jsonl` | Raw Qoder hook events captured by the plugin. |
+| `<QODER_HOME>/qoder-otel-state/` | Duplicate-upload guards. |
+
+Path layout by variant:
+
+| Variant | Qoder home | Config root |
+| --- | --- | --- |
+| `cn` | `~/.qoder-cn` | `~/.config/QoderCN` |
+| `global` | `~/.qoder` | `~/.config/Qoder` |
+
+Runtime files are stored under `<QODER_HOME>`:
+
+| File | Example |
+| --- | --- |
+| `gtrace.json` | `~/.qoder-cn/gtrace.json` |
+| `qoder-otel-hook.log` | `~/.qoder-cn/qoder-otel-hook.log` |
+| `qoder-otel-native-hook-events.jsonl` | `~/.qoder-cn/qoder-otel-native-hook-events.jsonl` |
+| `qoder-otel-state/` | `~/.qoder-cn/qoder-otel-state/` |
 
 Important upload log messages in `qoder-otel-hook.log`:
 
@@ -80,7 +96,7 @@ Installer presets:
 Example:
 
 ```bash
-bash scripts/install.sh --type gtrace --endpoint https://llm-openway.guance.com --x-token <token>
+bash scripts/install.sh --type gtrace --variant cn --endpoint https://llm-openway.guance.com --x-token <token>
 ```
 
 Data identity:

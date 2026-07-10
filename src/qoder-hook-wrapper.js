@@ -8,16 +8,18 @@ import { promisify } from "node:util";
 import { resolveConfig } from "./qoder-config.js";
 import { buildQoderMetrics } from "./qoder-metrics.js";
 import { qoderMetricsToOtlpProtobufRequest, qoderSpansToOtlpProtobufRequest } from "./qoder-otlp.js";
+import { resolveQoderLayout } from "./qoder-paths.js";
 import { encodeExportMetricsServiceRequest, encodeExportTraceServiceRequest } from "./proto.js";
 import { clipValue, readStdin } from "./qoder-utils.js";
 
 const execFileAsync = promisify(execFile);
 const PLUGIN_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
-const DEBUG_JSONL = path.join(os.homedir(), ".qoder-cn", "qoder-otel-native-hook-events.jsonl");
-const HOOK_LOG = path.join(os.homedir(), ".qoder-cn", "qoder-otel-hook.log");
-const STATE_DIR = path.join(os.homedir(), ".qoder-cn", "qoder-otel-state");
+const QODER_LAYOUT = resolveQoderLayout({ env: process.env, pluginRoot: PLUGIN_ROOT });
+const DEBUG_JSONL = QODER_LAYOUT.debugJsonlFile;
+const HOOK_LOG = QODER_LAYOUT.hookLogFile;
+const STATE_DIR = QODER_LAYOUT.stateDir;
 const UPLOAD_MARKER_DIR = path.join(STATE_DIR, "uploads");
-const QODER_GTRACE_CONFIG = path.join(os.homedir(), ".qoder-cn", "gtrace.json");
+const QODER_GTRACE_CONFIG = QODER_LAYOUT.globalConfigFile;
 const PLUGIN_VERSION = "0.1.0";
 const UPLOAD_CLAIM_TTL_MS = 10 * 60 * 1000;
 
@@ -505,11 +507,11 @@ function skillNameFromToolEvent(event) {
 
 function skillPath(skillName) {
   if (!skillName) return undefined;
-  return path.join(os.homedir(), ".qoder-cn", "skills", skillName, "SKILL.md");
+  return path.join(QODER_LAYOUT.skillsDir, skillName, "SKILL.md");
 }
 
 async function queryLatestTokenInfo(sessionId) {
-  const db = path.join(os.homedir(), ".config", "QoderCN", "SharedClientCache", "cache", "db", "local.db");
+  const db = QODER_LAYOUT.localDbPath;
   const script = `
 import json, sqlite3, sys
 db, session = sys.argv[1:3]
@@ -547,7 +549,7 @@ if row:
 }
 
 async function queryTokenInfo(sessionId) {
-  const db = path.join(os.homedir(), ".config", "QoderCN", "SharedClientCache", "cache", "db", "local.db");
+  const db = QODER_LAYOUT.localDbPath;
   const script = `
 import json, sqlite3, sys
 db, session = sys.argv[1:3]
