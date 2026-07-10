@@ -1,0 +1,15 @@
+{
+  "name": "qoder-otel-plugin",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Qoder OpenTelemetry trace exporter plugin.",
+  "scripts": {
+    "check": "for file in src/*.js; do node --check \"$file\"; done",
+    "install:local": "bash scripts/install.sh",
+    "build:release": "bash scripts/build-release.sh"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

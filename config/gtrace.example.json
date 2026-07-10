@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "endpoint": "https://llm-openway.guance.com",
+  "tracePath": "v1/write/otel-llm",
+  "metricsPath": "v1/write/otel-metrics",
+  "headers": {
+    "X-Token": "<your-token>"
+  },
+  "max_chars": 20000,
+  "timeout_ms": 25000,
+  "debug": false,
+  "resourceAttributes": {
+    "service.env": "prod",
+    "team": "ai-platform"
+  }
+}
