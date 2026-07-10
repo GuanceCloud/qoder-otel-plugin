@@ -4,7 +4,8 @@ set -euo pipefail
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 QODER_HOME="${QODER_HOME:-$HOME/.qoder-cn}"
 MARKETPLACE_NAME="${MARKETPLACE_NAME:-qoder-marketplace}"
-PLUGIN_NAME="${PLUGIN_NAME:-qoder-otel-probe}"
+PLUGIN_NAME="${PLUGIN_NAME:-qoder-otel-plugin}"
+LEGACY_PLUGIN_NAME="${LEGACY_PLUGIN_NAME:-qoder-otel-probe}"
 CONFIG_FILE="${QODER_GTRACE_CONFIG:-$QODER_HOME/gtrace.json}"
 WRITE_CONFIG=1
 KEEP_OLD=0
@@ -79,7 +80,7 @@ Options:
   --tag          Resource attribute as KEY=VALUE. Can be repeated.
   --config-file  Config file. Default: ~/.qoder-cn/gtrace.json.
   --no-config    Install plugin files only; do not create or update gtrace.json.
-  --keep-old      Keep older installed versions. Default behavior removes old qoder-otel-probe versions.
+  --keep-old      Keep older installed versions. Default behavior removes old qoder-otel-plugin versions.
 
 Environment:
   QODER_HOME          Qoder home. Default: ~/.qoder-cn
@@ -196,9 +197,15 @@ esac
 VERSION="$("$NODE_BIN" -p "JSON.parse(require('fs').readFileSync('$REPO_ROOT/package.json', 'utf8')).version")"
 PLUGIN_PARENT="$QODER_HOME/plugins/cache/$MARKETPLACE_NAME/$PLUGIN_NAME"
 PLUGIN_ROOT="$PLUGIN_PARENT/$VERSION"
+LEGACY_PLUGIN_PARENT="$QODER_HOME/plugins/cache/$MARKETPLACE_NAME/$LEGACY_PLUGIN_NAME"
+REMOVED_LEGACY_PLUGIN=0
 
 if [[ "$KEEP_OLD" -eq 0 && -d "$PLUGIN_PARENT" ]]; then
   find "$PLUGIN_PARENT" -mindepth 1 -maxdepth 1 -type d ! -name "$VERSION" -exec rm -rf {} +
+fi
+if [[ -d "$LEGACY_PLUGIN_PARENT" ]]; then
+  rm -rf "$LEGACY_PLUGIN_PARENT"
+  REMOVED_LEGACY_PLUGIN=1
 fi
 
 mkdir -p "$PLUGIN_ROOT"
@@ -208,7 +215,7 @@ cp -R "$REPO_ROOT/hooks" "$PLUGIN_ROOT/hooks"
 cp -R "$REPO_ROOT/.qoder-plugin" "$PLUGIN_ROOT/.qoder-plugin"
 cp "$REPO_ROOT/package.json" "$PLUGIN_ROOT/package.json"
 
-chmod +x "$PLUGIN_ROOT/hooks/qoder-otel-probe.sh" 2>/dev/null || true
+chmod +x "$PLUGIN_ROOT/hooks/qoder-otel-plugin.sh" 2>/dev/null || true
 
 "$NODE_BIN" - "$PLUGIN_ROOT" "$NODE_BIN" <<'NODE'
 const fs = require("fs");
@@ -281,6 +288,9 @@ fi
 log "installed plugin to $PLUGIN_ROOT"
 if [[ "$KEEP_OLD" -eq 0 ]]; then
   log "removed older installed versions under $PLUGIN_PARENT"
+fi
+if [[ "$REMOVED_LEGACY_PLUGIN" -eq 1 ]]; then
+  log "removed legacy plugin path $LEGACY_PLUGIN_PARENT"
 fi
 log "wrote hooks.json with node: $NODE_BIN"
 if [[ "$WRITE_CONFIG" -eq 1 ]]; then

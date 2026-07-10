@@ -43,7 +43,7 @@ curl -fsSL https://github.com/GuanceCloud/qoder-otel-plugin/releases/latest/down
       --x-token <token>
 ```
 
-Upgrade uses the same command. By default, the installer removes older installed `qoder-otel-probe` versions under `~/.qoder-cn/plugins/cache/qoder-marketplace/qoder-otel-probe/` to avoid duplicate hook uploads.
+Upgrade uses the same command. By default, the installer removes older installed `qoder-otel-plugin` versions under `~/.qoder-cn/plugins/cache/qoder-marketplace/qoder-otel-plugin/` to avoid duplicate hook uploads.
 
 To upgrade plugin files while keeping the existing `~/.qoder-cn/gtrace.json`:
 
@@ -68,7 +68,7 @@ bash scripts/install.sh \
 
 Both installers write:
 
-- plugin files to `~/.qoder-cn/plugins/cache/qoder-marketplace/qoder-otel-probe/<version>`
+- plugin files to `~/.qoder-cn/plugins/cache/qoder-marketplace/qoder-otel-plugin/<version>`
 - hook config to the installed plugin's `hooks.json`
 - runtime config to `~/.qoder-cn/gtrace.json`
 

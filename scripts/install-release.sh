@@ -67,7 +67,7 @@ Install and upgrade options are passed to scripts/install.sh:
   --keep-old
 
 Default upgrade behavior:
-  The new version is installed and older qoder-otel-probe versions are removed to avoid duplicate hook uploads.
+  The new version is installed and older qoder-otel-plugin versions are removed to avoid duplicate hook uploads.
   Use --keep-old only when you explicitly want to keep old versions on disk.
 
 Environment:
