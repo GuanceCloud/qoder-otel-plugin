@@ -35,6 +35,7 @@ sha256sum "$DIST_DIR/$NAME.tar.gz" > "$DIST_DIR/$NAME.tar.gz.sha256"
 
 cp "$DIST_DIR/$NAME.tar.gz" "$DIST_DIR/qoder-otel-plugin.tar.gz"
 cp "$DIST_DIR/$NAME.tar.gz.sha256" "$DIST_DIR/qoder-otel-plugin.tar.gz.sha256"
-cp "$REPO_ROOT/scripts/install-release.sh" "$DIST_DIR/install-release.sh"
+rm -f "$DIST_DIR/install-release.sh"
+cp "$REPO_ROOT/scripts/install.sh" "$DIST_DIR/install.sh"
 
 printf 'created %s\n' "$DIST_DIR/$NAME.tar.gz"

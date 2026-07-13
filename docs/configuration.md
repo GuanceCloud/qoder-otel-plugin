@@ -96,7 +96,7 @@ Installer presets:
 Example:
 
 ```bash
-bash scripts/install.sh --type gtrace --variant cn --endpoint https://llm-openway.guance.com --x-token <token>
+bash scripts/install-local.sh --type gtrace --variant cn --endpoint https://llm-openway.guance.com --x-token <token>
 ```
 
 Data identity:

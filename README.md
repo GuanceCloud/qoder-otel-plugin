@@ -28,7 +28,7 @@ It reads Qoder hook input and transcript files, enriches them with local Qoder S
 Users do not need to download the source tree. Install from a release asset:
 
 ```bash
-curl -fsSL https://github.com/GuanceCloud/qoder-otel-plugin/releases/latest/download/install-release.sh \
+curl -fsSL https://github.com/GuanceCloud/qoder-otel-plugin/releases/latest/download/install.sh \
   | bash -s -- latest \
       --type gtrace \
       --variant cn \
@@ -39,7 +39,7 @@ curl -fsSL https://github.com/GuanceCloud/qoder-otel-plugin/releases/latest/down
 Install a specific version:
 
 ```bash
-curl -fsSL https://github.com/GuanceCloud/qoder-otel-plugin/releases/latest/download/install-release.sh \
+curl -fsSL https://github.com/GuanceCloud/qoder-otel-plugin/releases/latest/download/install.sh \
   | bash -s -- v0.1.1 \
       --type gtrace \
       --variant cn \
@@ -52,7 +52,7 @@ Upgrade uses the same command. By default, the installer removes older installed
 To upgrade plugin files while keeping the existing `~/.qoder-cn/gtrace.json`:
 
 ```bash
-curl -fsSL https://github.com/GuanceCloud/qoder-otel-plugin/releases/latest/download/install-release.sh \
+curl -fsSL https://github.com/GuanceCloud/qoder-otel-plugin/releases/latest/download/install.sh \
   | bash -s -- latest --type gtrace --variant cn --no-config
 ```
 
@@ -64,7 +64,7 @@ From a local source checkout:
 
 ```bash
 cd qoder-otel-plugin
-bash scripts/install.sh \
+bash scripts/install-local.sh \
   --type gtrace \
   --variant cn \
   --endpoint https://llm-openway.guance.com \
@@ -104,13 +104,13 @@ Useful upload log messages include `prepared qoder spans`, `upload traces start`
 Use `--no-config` when you only want to refresh plugin files and keep the existing config:
 
 ```bash
-bash scripts/install.sh --no-config
+bash scripts/install-local.sh --no-config
 ```
 
 Use a custom Qoder home:
 
 ```bash
-QODER_HOME=/path/to/.qoder bash scripts/install.sh
+QODER_HOME=/path/to/.qoder bash scripts/install-local.sh
 ```
 
 Variant selection:
@@ -129,4 +129,4 @@ The build creates:
 
 - `dist/qoder-otel-plugin-v<version>.tar.gz`
 - `dist/qoder-otel-plugin.tar.gz`
-- `dist/install-release.sh`
+- `dist/install.sh`
