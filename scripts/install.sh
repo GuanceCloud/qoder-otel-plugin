@@ -24,6 +24,10 @@ log() {
   printf '[qoder-otel-plugin] %s\n' "$1"
 }
 
+warn() {
+  printf '[qoder-otel-plugin] WARN: %s\n' "$1" >&2
+}
+
 resolve_node() {
   local candidate
   if [[ -n "$NODE_BIN" ]]; then
@@ -108,6 +112,24 @@ resolve_qoder_home() {
   else
     printf '%s' "$USER_HOME/.qoder-cn"
   fi
+}
+
+resolve_config_root() {
+  local variant="$1"
+  if [[ "$variant" == "global" ]]; then
+    printf '%s' "$USER_HOME/.config/Qoder"
+  else
+    printf '%s' "$USER_HOME/.config/QoderCN"
+  fi
+}
+
+is_qoder_running() {
+  if command -v pgrep >/dev/null 2>&1; then
+    if pgrep -af 'Qoder|qoder' >/dev/null 2>&1; then
+      return 0
+    fi
+  fi
+  return 1
 }
 
 usage() {
@@ -233,6 +255,13 @@ NODE_BIN="$(resolve_node)"
 check_node_version "$NODE_BIN"
 INSTALL_VARIANT="$(resolve_variant "$INSTALL_VARIANT")"
 QODER_HOME="$(resolve_qoder_home "$INSTALL_VARIANT")"
+CONFIG_ROOT="$(resolve_config_root "$INSTALL_VARIANT")"
+SHARED_PLUGIN_REGISTRY_DIR="$CONFIG_ROOT/SharedClientCache/plugins"
+SHARED_SETTINGS_FILE="$CONFIG_ROOT/SharedClientCache/settings.json"
+SHARED_INSTALLED_PLUGINS_FILE="$SHARED_PLUGIN_REGISTRY_DIR/installed_plugins.json"
+QODER_PLUGIN_REGISTRY_DIR="$QODER_HOME/plugins"
+QODER_SETTINGS_FILE="$QODER_HOME/settings.json"
+QODER_INSTALLED_PLUGINS_FILE="$QODER_PLUGIN_REGISTRY_DIR/installed_plugins.json"
 CONFIG_FILE="${CONFIG_FILE:-$QODER_HOME/gtrace.json}"
 
 case "$INSTALL_TYPE" in
@@ -306,6 +335,67 @@ for (const eventName of eventNames) {
 fs.writeFileSync(path.join(pluginRoot, "hooks.json"), JSON.stringify({ hooks }, null, 2) + "\n");
 NODE
 
+mkdir -p "$SHARED_PLUGIN_REGISTRY_DIR" "$QODER_PLUGIN_REGISTRY_DIR"
+"$NODE_BIN" - "$MARKETPLACE_NAME" "$PLUGIN_NAME" "$LEGACY_PLUGIN_NAME" "$PLUGIN_ROOT" "$VERSION" "$SHARED_SETTINGS_FILE" "$SHARED_INSTALLED_PLUGINS_FILE" "$QODER_SETTINGS_FILE" "$QODER_INSTALLED_PLUGINS_FILE" <<'NODE'
+const fs = require("fs");
+
+const [
+  marketplaceName,
+  pluginName,
+  legacyPluginName,
+  pluginRoot,
+  version,
+  ...registryFiles
+] = process.argv.slice(2);
+
+const pluginId = `${pluginName}@${marketplaceName}`;
+const legacyPluginId = `${legacyPluginName}@${marketplaceName}`;
+const now = new Date().toISOString();
+
+function readJson(file, fallback) {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return fallback;
+  }
+}
+
+function writeJson(file, value) {
+  fs.writeFileSync(file, JSON.stringify(value, null, 2) + "\n");
+}
+
+for (let index = 0; index < registryFiles.length; index += 2) {
+  const settingsFile = registryFiles[index];
+  const installedPluginsFile = registryFiles[index + 1];
+  if (!settingsFile || !installedPluginsFile) continue;
+
+  const settings = readJson(settingsFile, {});
+  const enabledPlugins = { ...(settings.enabledPlugins || {}) };
+  delete enabledPlugins[legacyPluginId];
+  enabledPlugins[pluginId] = true;
+  writeJson(settingsFile, {
+    ...settings,
+    enabledPlugins,
+  });
+
+  const installedPluginsState = readJson(installedPluginsFile, {});
+  const plugins = { ...(installedPluginsState.plugins || {}) };
+  const existing = plugins[pluginId] || {};
+  delete plugins[legacyPluginId];
+  plugins[pluginId] = {
+    scope: existing.scope || "user",
+    installPath: pluginRoot,
+    version,
+    installedAt: existing.installedAt || now,
+    lastUpdated: now,
+  };
+  writeJson(installedPluginsFile, {
+    ...installedPluginsState,
+    plugins,
+  });
+}
+NODE
+
 if [[ "$WRITE_CONFIG" -eq 1 ]]; then
   mkdir -p "$(dirname "$CONFIG_FILE")"
   "$NODE_BIN" - "$CONFIG_FILE" "$ENDPOINT" "$TRACE_PATH" "$METRICS_PATH" "$X_TOKEN" "${HEADERS[@]}" -- "${TAGS[@]}" <<'NODE'
@@ -342,7 +432,102 @@ fs.writeFileSync(configFile, JSON.stringify(next, null, 2) + "\n");
 NODE
 fi
 
+"$NODE_BIN" - "$PLUGIN_ROOT" "$CONFIG_FILE" "$PLUGIN_NAME" "$MARKETPLACE_NAME" "$VERSION" "$WRITE_CONFIG" "$QODER_SETTINGS_FILE" "$QODER_INSTALLED_PLUGINS_FILE" "$SHARED_SETTINGS_FILE" "$SHARED_INSTALLED_PLUGINS_FILE" <<'NODE'
+const fs = require("fs");
+const path = require("path");
+
+const [
+  pluginRoot,
+  configFile,
+  pluginName,
+  marketplaceName,
+  version,
+  writeConfigFlag,
+  ...registryFiles
+] = process.argv.slice(2);
+
+const pluginId = `${pluginName}@${marketplaceName}`;
+
+function fail(message) {
+  console.error(`[qoder-otel-plugin] verify failed: ${message}`);
+  process.exit(1);
+}
+
+function readJson(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch (error) {
+    fail(`cannot read ${file}: ${error.message}`);
+  }
+}
+
+const requiredFiles = [
+  path.join(pluginRoot, "src", "qoder-hook-wrapper.js"),
+  path.join(pluginRoot, "hooks.json"),
+  path.join(pluginRoot, ".qoder-plugin", "plugin.json"),
+];
+
+for (const file of requiredFiles) {
+  if (!fs.existsSync(file)) {
+    fail(`missing required file ${file}`);
+  }
+}
+
+const hooksState = readJson(path.join(pluginRoot, "hooks.json"));
+const hookEvents = Object.keys(hooksState.hooks || {});
+if (hookEvents.length === 0) {
+  fail("hooks.json contains no hook events");
+}
+
+for (let index = 0; index < registryFiles.length; index += 2) {
+  const settingsFile = registryFiles[index];
+  const installedPluginsFile = registryFiles[index + 1];
+  if (!settingsFile || !installedPluginsFile) continue;
+
+  const settings = readJson(settingsFile);
+  if (!settings.enabledPlugins || settings.enabledPlugins[pluginId] !== true) {
+    fail(`plugin ${pluginId} is not enabled in ${settingsFile}`);
+  }
+
+  const installedPluginsState = readJson(installedPluginsFile);
+  const pluginMeta = installedPluginsState.plugins?.[pluginId];
+  if (!pluginMeta) {
+    fail(`plugin ${pluginId} missing from ${installedPluginsFile}`);
+  }
+  if (pluginMeta.installPath !== pluginRoot) {
+    fail(`installPath mismatch in ${installedPluginsFile}: expected ${pluginRoot}, got ${pluginMeta.installPath}`);
+  }
+  if (pluginMeta.version !== version) {
+    fail(`version mismatch in ${installedPluginsFile}: expected ${version}, got ${pluginMeta.version}`);
+  }
+}
+
+if (String(writeConfigFlag) === "1") {
+  const runtimeConfig = readJson(configFile);
+  if (runtimeConfig.enabled !== true) {
+    fail(`runtime config ${configFile} is not enabled`);
+  }
+}
+
+console.log(`[qoder-otel-plugin] verified plugin files: ${pluginRoot}`);
+for (let index = 0; index < registryFiles.length; index += 2) {
+  const settingsFile = registryFiles[index];
+  const installedPluginsFile = registryFiles[index + 1];
+  if (settingsFile && installedPluginsFile) {
+    console.log(`[qoder-otel-plugin] verified plugin registry: ${settingsFile}`);
+    console.log(`[qoder-otel-plugin] verified installed plugin record: ${installedPluginsFile}`);
+  }
+}
+if (String(writeConfigFlag) === "1") {
+  console.log(`[qoder-otel-plugin] verified runtime config: ${configFile}`);
+}
+NODE
+
 log "installed plugin to $PLUGIN_ROOT"
+log "updated plugin registry: $QODER_SETTINGS_FILE"
+log "updated installed plugins: $QODER_INSTALLED_PLUGINS_FILE"
+log "updated shared plugin registry: $SHARED_SETTINGS_FILE"
+log "updated shared installed plugins: $SHARED_INSTALLED_PLUGINS_FILE"
 if [[ "$KEEP_OLD" -eq 0 ]]; then
   log "removed older installed versions under $PLUGIN_PARENT"
 fi
@@ -355,4 +540,9 @@ if [[ "$WRITE_CONFIG" -eq 1 ]]; then
 else
   log "skipped config update"
 fi
-log "restart Qoder to reload hooks"
+if is_qoder_running; then
+  warn "Qoder is currently running. Restart Qoder to reload hooks."
+else
+  log "Qoder is not running; next launch will load hooks."
+fi
+log "install completed: registered, enabled, verified"
