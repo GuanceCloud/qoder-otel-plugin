@@ -10,7 +10,7 @@ import { buildQoderMetrics } from "./qoder-metrics.js";
 import { qoderMetricsToOtlpProtobufRequest, qoderSpansToOtlpProtobufRequest } from "./qoder-otlp.js";
 import { resolveQoderLayout } from "./qoder-paths.js";
 import { encodeExportMetricsServiceRequest, encodeExportTraceServiceRequest } from "./proto.js";
-import { clipValue, readStdin } from "./qoder-utils.js";
+import { clipValue, readStdin, toText, truncate } from "./qoder-utils.js";
 
 const execFileAsync = promisify(execFile);
 const PLUGIN_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
@@ -325,6 +325,17 @@ function makeSpan({ traceId, spanId, parentId, name, startNs, endNs, attributes,
   };
 }
 
+function previewFields(input, output, maxChars) {
+  const inputText = toText(input);
+  const outputText = toText(output);
+  return {
+    input_preview: truncate(inputText, maxChars),
+    input_length: inputText.length,
+    output_preview: truncate(outputText, maxChars),
+    output_length: outputText.length,
+  };
+}
+
 function transcriptFingerprint(events) {
   const last = events.at(-1);
   return crypto.createHash("sha256").update(JSON.stringify({
@@ -618,6 +629,7 @@ function buildSpans(config, hookInput, turn) {
     "qoder.hook_source": process.env.QODER_HOOK_SOURCE,
     "qoder.user_id": hookInput.extra?.user?.uid ?? process.env.QODER_USER_ID,
     "qoder.user_name": hookInput.extra?.user?.name ?? process.env.QODER_USER_NAME,
+    ...previewFields(turn.prompt, turn.output, config.max_chars),
     "gen_ai.input.messages": clipValue([{ role: "user", content: turn.prompt }], config.max_chars),
     "gen_ai.output.messages": clipValue([{ role: "assistant", content: turn.output }], config.max_chars),
     "gen_ai.response.finish_reasons": ["stop"],
