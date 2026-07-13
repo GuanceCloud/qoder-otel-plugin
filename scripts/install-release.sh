@@ -52,7 +52,7 @@ Examples:
     | bash -s -- latest --type gtrace --endpoint https://llm-openway.guance.com --x-token <token>
 
   curl -fsSL https://github.com/GuanceCloud/qoder-otel-plugin/releases/latest/download/install-release.sh \\
-    | bash -s -- v0.1.0 --type gtrace --no-config
+    | bash -s -- v0.1.1 --type gtrace --no-config
 
 Install and upgrade options are passed to scripts/install.sh:
   --type gtrace|otlp

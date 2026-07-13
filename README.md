@@ -40,7 +40,7 @@ Install a specific version:
 
 ```bash
 curl -fsSL https://github.com/GuanceCloud/qoder-otel-plugin/releases/latest/download/install-release.sh \
-  | bash -s -- v0.1.0 \
+  | bash -s -- v0.1.1 \
       --type gtrace \
       --variant cn \
       --endpoint https://llm-openway.guance.com \
