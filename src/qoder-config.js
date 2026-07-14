@@ -87,12 +87,17 @@ function normalizeSignalPath(value, fallback) {
 }
 
 function parseHeaders(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const headers = {};
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { "To-Headless": "true" };
+  }
   for (const [key, item] of Object.entries(value)) {
     if (typeof item === "string" && item.trim()) headers[key] = item.trim();
   }
-  return Object.keys(headers).length > 0 ? headers : undefined;
+  if (!Object.keys(headers).some((key) => key.toLowerCase() === "to-headless")) {
+    headers["To-Headless"] = "true";
+  }
+  return headers;
 }
 
 export function resolveConfig(options = {}) {

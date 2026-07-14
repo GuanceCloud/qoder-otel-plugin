@@ -409,6 +409,9 @@ try {
   current = JSON.parse(fs.readFileSync(configFile, "utf8"));
 } catch {}
 const headers = { ...(current.headers || {}) };
+if (!Object.keys(headers).some((key) => key.toLowerCase() === "to-headless")) {
+  headers["To-Headless"] = "true";
+}
 if (xToken) headers["X-Token"] = xToken;
 for (const item of headersArgs) {
   const index = item.indexOf("=");

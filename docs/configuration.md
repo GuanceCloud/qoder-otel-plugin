@@ -27,7 +27,7 @@ Common fields:
 | `metricsPath` | Metrics route appended to `endpoint`. |
 | `otel_traces_url` | Full trace URL. Overrides `endpoint + tracePath` when set. |
 | `otel_metrics_url` | Full metrics URL. Overrides `endpoint + metricsPath` when set. |
-| `headers` | Extra HTTP headers, for example `X-Token`. |
+| `headers` | Extra HTTP headers, for example `X-Token`. `To-Headless: "true"` is added by default. |
 | `public_key` / `secret_key` | Optional Basic auth credentials. |
 | `resourceAttributes` | Extra OTLP resource attributes. |
 | `max_chars` | Maximum size for captured input/output fields. Default `20000`. |

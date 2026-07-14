@@ -10,6 +10,18 @@ function exists(target) {
   }
 }
 
+function uniquePaths(paths = []) {
+  const seen = new Set();
+  const result = [];
+  for (const target of paths) {
+    const value = String(target ?? "").trim();
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    result.push(value);
+  }
+  return result;
+}
+
 function normalizeVariant(value) {
   const normalized = String(value ?? "").trim().toLowerCase();
   if (!normalized || normalized === "auto") return "auto";
@@ -70,6 +82,16 @@ export function resolveQoderLayout(options = {}) {
   const qoderHome = explicitQoderHome ?? path.join(home, variant === "cn" ? ".qoder-cn" : ".qoder");
   const configRoot = options.configRoot ?? env.QODER_CONFIG_ROOT ?? path.join(home, ".config", variant === "cn" ? "QoderCN" : "Qoder");
   const localConfigDirName = variant === "cn" ? ".qoder-cn" : ".qoder";
+  const localDbCandidates = uniquePaths([
+    options.localDbPath,
+    env.QODER_LOCAL_DB_PATH,
+    env.QODER_DB_PATH,
+    path.join(configRoot, "SharedClientCache", "cache", "db", "local.db"),
+    path.join(configRoot, "SharedClientCache", "db", "local.db"),
+    path.join(qoderHome, "shared_client", "cache", "db", "local.db"),
+    path.join(qoderHome, "shared_client", "db", "local.db"),
+  ]);
+  const localDbPath = localDbCandidates.find((target) => exists(target)) ?? localDbCandidates[0];
 
   return {
     variant,
@@ -82,6 +104,7 @@ export function resolveQoderLayout(options = {}) {
     debugJsonlFile: path.join(qoderHome, "qoder-otel-native-hook-events.jsonl"),
     stateDir: path.join(qoderHome, "qoder-otel-state"),
     skillsDir: path.join(qoderHome, "skills"),
-    localDbPath: path.join(configRoot, "SharedClientCache", "cache", "db", "local.db"),
+    localDbPath,
+    localDbCandidates,
   };
 }

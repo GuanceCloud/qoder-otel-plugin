@@ -521,8 +521,34 @@ function skillPath(skillName) {
   return path.join(QODER_LAYOUT.skillsDir, skillName, "SKILL.md");
 }
 
-async function queryLatestTokenInfo(sessionId) {
+async function resolveTokenDbPath(sessionId) {
   const db = QODER_LAYOUT.localDbPath;
+  if (!db) {
+    await appendLog("token db unavailable", {
+      session_id: sessionId,
+      reason: "no_db_path",
+      candidates: QODER_LAYOUT.localDbCandidates,
+    });
+    return undefined;
+  }
+
+  try {
+    await fs.access(db);
+    return db;
+  } catch (error) {
+    await appendLog("token db unavailable", {
+      session_id: sessionId,
+      db,
+      candidates: QODER_LAYOUT.localDbCandidates,
+      error: error.message,
+    });
+    return undefined;
+  }
+}
+
+async function queryLatestTokenInfo(sessionId) {
+  const db = await resolveTokenDbPath(sessionId);
+  if (!db) return {};
   const script = `
 import json, sqlite3, sys
 db, session = sys.argv[1:3]
@@ -554,13 +580,19 @@ if row:
       gmtCreate: row.gmt_create,
     };
   } catch (error) {
-    await appendLog("token query failed", { error: error.message });
+    await appendLog("token query failed", {
+      session_id: sessionId,
+      db,
+      candidates: QODER_LAYOUT.localDbCandidates,
+      error: error.message,
+    });
     return {};
   }
 }
 
 async function queryTokenInfo(sessionId) {
-  const db = QODER_LAYOUT.localDbPath;
+  const db = await resolveTokenDbPath(sessionId);
+  if (!db) return { rows: [], latest: {} };
   const script = `
 import json, sqlite3, sys
 db, session = sys.argv[1:3]
@@ -598,7 +630,12 @@ print(json.dumps([
       latest: parsedRows.at(-1) ?? {},
     };
   } catch (error) {
-    await appendLog("token query failed", { error: error.message });
+    await appendLog("token query failed", {
+      session_id: sessionId,
+      db,
+      candidates: QODER_LAYOUT.localDbCandidates,
+      error: error.message,
+    });
     return { rows: [], latest: {} };
   }
 }
