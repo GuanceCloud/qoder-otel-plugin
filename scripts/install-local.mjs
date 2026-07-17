@@ -40,7 +40,12 @@ for (const item of ["src", "hooks", ".qoder-plugin"]) { fs.rmSync(path.join(plug
 fs.copyFileSync(path.join(repoRoot, "package.json"), path.join(pluginRoot, "package.json"));
 
 const quote = value => process.platform === "win32" ? `"${String(value).replace(/"/g, '\\"')}"` : `'${String(value).replace(/'/g, `'\\''`)}'`;
-const command = `${quote(process.execPath)} ${quote(path.join(pluginRoot, "src", "qoder-hook-wrapper.js"))}`, hooks = {};
+const invocation = `${quote(process.execPath)} ${quote(path.join(pluginRoot, "src", "qoder-hook-wrapper.js"))}`;
+// Qoder runs hook commands through `cmd /c` on Windows. Prefixing the quoted
+// executable with the cmd.exe `call` built-in prevents cmd from treating the
+// executable quotes as the outer /c command quotes.
+const command = process.platform === "win32" ? `call ${invocation}` : invocation;
+const hooks = {};
 for (const event of ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "Stop", "SessionEnd"]) hooks[event] = [{ matcher: "", hooks: [{ type: "command", command, timeout: 30, outputByteLimit: 200000 }] }];
 writeJson(path.join(pluginRoot, "hooks.json"), { hooks });
 
