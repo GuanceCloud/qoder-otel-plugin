@@ -17,10 +17,10 @@ It reads Qoder hook input and transcript files, enriches them with local Qoder S
 
 ## Requirements
 
-- Linux/macOS
+- Linux/macOS/Windows
 - Qoder local data layout:
-  - CN: `~/.qoder-cn` and `~/.config/QoderCN`
-  - non-CN: `~/.qoder` and `~/.config/Qoder`
+  - CN: `~/.qoder-cn` and `~/.config/QoderCN` (Windows: `%APPDATA%\\QoderCN`)
+  - non-CN: `~/.qoder` and `~/.config/Qoder` (Windows: `%APPDATA%\\Qoder`)
 - Node.js >= 22
 
 ## Install For Users
@@ -58,6 +58,14 @@ curl -fsSL https://github.com/GuanceCloud/qoder-otel-plugin/releases/latest/down
 
 Restart Qoder after install or upgrade so hooks are reloaded.
 
+Windows release install (PowerShell):
+
+```powershell
+irm https://github.com/GuanceCloud/qoder-otel-plugin/releases/latest/download/install.ps1 -OutFile install.ps1
+powershell -ExecutionPolicy Bypass -File .\install.ps1 latest --type gtrace --variant cn `
+  --endpoint https://llm-openway.guance.com --x-token <token>
+```
+
 ## Development Install
 
 From a local source checkout:
@@ -69,6 +77,25 @@ bash scripts/install-local.sh \
   --variant cn \
   --endpoint https://llm-openway.guance.com \
   --x-token <token>
+```
+
+Windows PowerShell users can install from a local checkout with:
+
+```powershell
+.\scripts\install-local.ps1 --type gtrace --variant cn `
+  --endpoint https://llm-openway.guance.com --x-token <token>
+```
+
+If PowerShell script execution is disabled, use the CMD entry point:
+
+```powershell
+.\scripts\install-local.cmd --variant cn --no-config
+```
+
+Or use the cross-platform npm command:
+
+```powershell
+npm run install:local -- --variant cn --no-config
 ```
 
 Both installers write:

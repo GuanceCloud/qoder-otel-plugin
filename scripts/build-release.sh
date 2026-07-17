@@ -37,5 +37,6 @@ cp "$DIST_DIR/$NAME.tar.gz" "$DIST_DIR/qoder-otel-plugin.tar.gz"
 cp "$DIST_DIR/$NAME.tar.gz.sha256" "$DIST_DIR/qoder-otel-plugin.tar.gz.sha256"
 rm -f "$DIST_DIR/install-release.sh"
 cp "$REPO_ROOT/scripts/install.sh" "$DIST_DIR/install.sh"
+cp "$REPO_ROOT/scripts/install.ps1" "$DIST_DIR/install.ps1"
 
 printf 'created %s\n' "$DIST_DIR/$NAME.tar.gz"

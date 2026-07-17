@@ -5,8 +5,8 @@
   "private": true,
   "description": "Qoder OpenTelemetry trace exporter plugin.",
   "scripts": {
-    "check": "for file in src/*.js; do node --check \"$file\"; done",
-    "install:local": "bash scripts/install-local.sh",
+    "check": "node scripts/check.mjs",
+    "install:local": "node scripts/install-local.mjs",
     "build:release": "bash scripts/build-release.sh"
   },
   "engines": {
