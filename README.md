@@ -61,9 +61,19 @@ Restart Qoder after install or upgrade so hooks are reloaded.
 Windows release install (PowerShell):
 
 ```powershell
-irm https://github.com/GuanceCloud/qoder-otel-plugin/releases/latest/download/install.ps1 -OutFile install.ps1
-powershell -ExecutionPolicy Bypass -File .\install.ps1 latest --type gtrace --variant cn `
+irm https://github.com/GuanceCloud/qoder-otel-plugin/releases/latest/download/install-release.ps1 -OutFile install-release.ps1
+powershell -ExecutionPolicy Bypass -File .\install-release.ps1 -Version latest -Type gtrace -Variant cn `
   --endpoint https://llm-openway.guance.com --x-token <token>
+```
+
+The installer also supports direct in-memory execution and repeatable tags:
+
+```powershell
+& ([scriptblock]::Create((irm https://github.com/GuanceCloud/qoder-otel-plugin/releases/latest/download/install-release.ps1))) `
+  -Version latest `
+  -Endpoint https://llm-openway.guance.com `
+  -XToken '<token>' `
+  -Tag @('agent_id=<agent-id>', 'agent_name=<agent-name>')
 ```
 
 ## Development Install
