@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
 
 import { resolveConfig } from "./qoder-config.js";
 import { buildQoderMetrics } from "./qoder-metrics.js";
@@ -13,7 +14,7 @@ import { encodeExportMetricsServiceRequest, encodeExportTraceServiceRequest } fr
 import { clipValue, readStdin, toText, truncate } from "./qoder-utils.js";
 
 const execFileAsync = promisify(execFile);
-const PLUGIN_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const QODER_LAYOUT = resolveQoderLayout({ env: process.env, pluginRoot: PLUGIN_ROOT });
 const DEBUG_JSONL = QODER_LAYOUT.debugJsonlFile;
 const HOOK_LOG = QODER_LAYOUT.hookLogFile;
