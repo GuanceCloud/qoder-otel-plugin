@@ -1,7 +1,7 @@
 {
   "name": "qoder-otel-plugin",
   "displayName": "Qoder OTel Plugin",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Export Qoder agent turns as OpenTelemetry traces.",
   "repository": "https://github.com/GuanceCloud/qoder-otel-plugin"
 }

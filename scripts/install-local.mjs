@@ -55,8 +55,28 @@ for (const [settingsFile, installedFile] of registries) {
   const settings = readJson(settingsFile); settings.enabledPlugins = { ...(settings.enabledPlugins || {}) }; delete settings.enabledPlugins[legacyId]; settings.enabledPlugins[pluginId] = true; writeJson(settingsFile, settings);
   const installed = readJson(installedFile), now = new Date().toISOString(), existing = installed.plugins?.[pluginId] || {}; installed.plugins = { ...(installed.plugins || {}) }; delete installed.plugins[legacyId]; installed.plugins[pluginId] = { scope: existing.scope || "user", installPath: pluginRoot, version, installedAt: existing.installedAt || now, lastUpdated: now }; writeJson(installedFile, installed);
 }
+const installedV2File = path.join(qoderHome, "plugins", "installed_plugins_v2.json");
+const installedV2 = readJson(installedV2File, { version: 2, plugins: {} });
+installedV2.version = 2;
+installedV2.plugins = { ...(installedV2.plugins || {}) };
+const existingV2Entries = Array.isArray(installedV2.plugins[pluginId]) ? installedV2.plugins[pluginId] : [];
+const existingV2 = existingV2Entries.find(entry => entry?.scope === "user") || existingV2Entries[0] || {};
+const nowV2 = new Date().toISOString();
+delete installedV2.plugins[legacyId];
+installedV2.plugins[pluginId] = [{
+  ...existingV2,
+  scope: "user",
+  installPath: pluginRoot,
+  version,
+  source: existingV2.source || "marketplace",
+  enabled: true,
+  installedAt: existingV2.installedAt || nowV2,
+  lastUpdated: nowV2,
+}];
+writeJson(installedV2File, installedV2);
 const configFile = path.resolve(opt.configFile || path.join(qoderHome, "gtrace.json"));
 if (opt.writeConfig) { const config = readJson(configFile), headers = { ...(config.headers || {}), ...toMap(opt.headers) }; if (!Object.keys(headers).some(k => k.toLowerCase() === "to-headless")) headers["To-Headless"] = "true"; if (opt.xToken) headers["X-Token"] = opt.xToken; const gtrace = opt.type === "gtrace"; Object.assign(config, { enabled: true, tracePath: opt.tracePath || (gtrace ? "v1/write/otel-llm" : "v1/traces"), metricsPath: opt.metricsPath || (gtrace ? "v1/write/otel-metrics" : "v1/metrics"), headers, resourceAttributes: { ...(config.resourceAttributes || {}), ...toMap(opt.tags) } }); if (opt.endpoint) config.endpoint = opt.endpoint; writeJson(configFile, config); }
 for (const file of [path.join(pluginRoot, "src", "qoder-hook-wrapper.js"), path.join(pluginRoot, "hooks.json"), path.join(pluginRoot, ".qoder-plugin", "plugin.json")]) if (!fs.existsSync(file)) throw new Error(`Verification failed, missing ${file}`);
 for (const [settingsFile, installedFile] of registries) { if (readJson(settingsFile).enabledPlugins?.[pluginId] !== true || readJson(installedFile).plugins?.[pluginId]?.installPath !== pluginRoot) throw new Error(`Registry verification failed: ${settingsFile}`); }
+if (!readJson(installedV2File).plugins?.[pluginId]?.some(entry => entry.installPath === pluginRoot && entry.version === version)) throw new Error(`Registry verification failed: ${installedV2File}`);
 console.log(`[qoder-otel-plugin] installed and verified: ${pluginRoot}`); console.log(`[qoder-otel-plugin] hooks use Node.js: ${process.execPath}`); if (opt.writeConfig) console.log(`[qoder-otel-plugin] updated config: ${configFile}`); console.log("[qoder-otel-plugin] restart Qoder to reload hooks");
