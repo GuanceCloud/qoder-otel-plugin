@@ -167,3 +167,5 @@ The build creates:
 - `dist/qoder-otel-plugin-v<version>.tar.gz`
 - `dist/qoder-otel-plugin.tar.gz`
 - `dist/install.sh`
+
+Pushing a version tag such as `v0.1.7` triggers `.github/workflows/release.yml`. The workflow verifies that the tag, `package.json`, plugin manifest, and runtime version match, runs checks, builds all assets, and publishes the GitHub Release automatically.
