@@ -21,7 +21,7 @@ It reads Qoder hook input and transcript files, enriches them with local Qoder S
 - Qoder local data layout:
   - CN: `~/.qoder-cn` and `~/.config/QoderCN` (Windows: `%APPDATA%\\QoderCN`)
   - non-CN: `~/.qoder` and `~/.config/Qoder` (Windows: `%APPDATA%\\Qoder`)
-- Node.js >= 22
+- Node.js >= 22.5
 
 ## Install For Users
 

@@ -1,6 +1,6 @@
 {
   "name": "qoder-otel-plugin",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "type": "module",
   "private": true,
   "description": "Qoder OpenTelemetry trace exporter plugin.",
@@ -10,6 +10,6 @@
     "build:release": "bash scripts/build-release.sh"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.5"
   }
 }

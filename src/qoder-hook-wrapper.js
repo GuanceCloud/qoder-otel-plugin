@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { execFile } from "node:child_process";
+import { DatabaseSync } from "node:sqlite";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
@@ -21,7 +22,7 @@ const HOOK_LOG = QODER_LAYOUT.hookLogFile;
 const STATE_DIR = QODER_LAYOUT.stateDir;
 const UPLOAD_MARKER_DIR = path.join(STATE_DIR, "uploads");
 const QODER_GTRACE_CONFIG = QODER_LAYOUT.globalConfigFile;
-const PLUGIN_VERSION = "0.1.9";
+const PLUGIN_VERSION = "0.1.10";
 const UPLOAD_CLAIM_TTL_MS = 10 * 60 * 1000;
 
 function randomTraceId() {
@@ -550,24 +551,16 @@ async function resolveTokenDbPath(sessionId) {
 async function queryLatestTokenInfo(sessionId) {
   const db = await resolveTokenDbPath(sessionId);
   if (!db) return {};
-  const script = `
-import json, sqlite3, sys
-db, session = sys.argv[1:3]
-con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
-row = con.execute("""
-select request_id, token_info, model_info, extra, gmt_create
-from chat_message
-where session_id = ? and role = 'assistant' and token_info != ''
-order by gmt_create desc
-limit 1
-""", (session,)).fetchone()
-con.close()
-if row:
-    print(json.dumps({"request_id": row[0], "token_info": row[1], "model_info": row[2], "extra": row[3], "gmt_create": row[4]}))
-`;
+  let database;
   try {
-    const { stdout } = await execFileAsync("python3", ["-c", script, db, sessionId], { timeout: 3000 });
-    const row = safeJsonParse(stdout.trim());
+    database = new DatabaseSync(db, { readOnly: true });
+    const row = database.prepare(`
+      select request_id, token_info, model_info, extra, gmt_create
+      from chat_message
+      where session_id = ? and role = 'assistant' and token_info != ''
+      order by gmt_create desc
+      limit 1
+    `).get(sessionId);
     if (!row) return {};
     const usage = safeJsonParse(row.token_info, {});
     const model = safeJsonParse(row.model_info, {});
@@ -588,31 +581,23 @@ if row:
       error: error.message,
     });
     return {};
+  } finally {
+    database?.close();
   }
 }
 
 async function queryTokenInfo(sessionId) {
   const db = await resolveTokenDbPath(sessionId);
   if (!db) return { rows: [], latest: {} };
-  const script = `
-import json, sqlite3, sys
-db, session = sys.argv[1:3]
-con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
-rows = con.execute("""
-select request_id, token_info, model_info, extra, gmt_create
-from chat_message
-where session_id = ? and role = 'assistant' and token_info != ''
-order by gmt_create asc
-""", (session,)).fetchall()
-con.close()
-print(json.dumps([
-    {"request_id": row[0], "token_info": row[1], "model_info": row[2], "extra": row[3], "gmt_create": row[4]}
-    for row in rows
-]))
-`;
+  let database;
   try {
-    const { stdout } = await execFileAsync("python3", ["-c", script, db, sessionId], { timeout: 3000 });
-    const rows = safeJsonParse(stdout.trim(), []);
+    database = new DatabaseSync(db, { readOnly: true });
+    const rows = database.prepare(`
+      select request_id, token_info, model_info, extra, gmt_create
+      from chat_message
+      where session_id = ? and role = 'assistant' and token_info != ''
+      order by gmt_create asc
+    `).all(sessionId);
     const parsedRows = rows.map((row) => {
       const usage = safeJsonParse(row.token_info, {});
       const model = safeJsonParse(row.model_info, {});
@@ -638,6 +623,8 @@ print(json.dumps([
       error: error.message,
     });
     return { rows: [], latest: {} };
+  } finally {
+    database?.close();
   }
 }
 
