@@ -80,7 +80,11 @@ export function resolveQoderLayout(options = {}) {
   }
 
   const qoderHome = explicitQoderHome ?? path.join(home, variant === "cn" ? ".qoder-cn" : ".qoder");
-  const configRoot = options.configRoot ?? env.QODER_CONFIG_ROOT ?? path.join(home, ".config", variant === "cn" ? "QoderCN" : "Qoder");
+  const platform = options.platform ?? process.platform;
+  const defaultConfigRoot = platform === "win32"
+    ? path.join(env.APPDATA ?? path.join(home, "AppData", "Roaming"), variant === "cn" ? "QoderCN" : "Qoder")
+    : path.join(home, ".config", variant === "cn" ? "QoderCN" : "Qoder");
+  const configRoot = options.configRoot ?? env.QODER_CONFIG_ROOT ?? defaultConfigRoot;
   const localConfigDirName = variant === "cn" ? ".qoder-cn" : ".qoder";
   const localDbCandidates = uniquePaths([
     options.localDbPath,
