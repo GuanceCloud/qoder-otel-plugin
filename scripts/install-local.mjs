@@ -41,10 +41,18 @@ fs.copyFileSync(path.join(repoRoot, "package.json"), path.join(pluginRoot, "pack
 
 const quote = value => process.platform === "win32" ? `"${String(value).replace(/"/g, '\\"')}"` : `'${String(value).replace(/'/g, `'\\''`)}'`;
 const invocation = `${quote(process.execPath)} ${quote(path.join(pluginRoot, "src", "qoder-hook-wrapper.js"))}`;
-// Qoder runs hook commands through `cmd /c` on Windows. Prefixing the quoted
-// executable with the cmd.exe `call` built-in prevents cmd from treating the
-// executable quotes as the outer /c command quotes.
-const command = process.platform === "win32" ? `call ${invocation}` : invocation;
+let command = invocation;
+if (process.platform === "win32") {
+  // Qoder adds its own `cmd /c` layer. Keep that outer command free of quoted
+  // executable paths and let a relative batch launcher perform the invocation.
+  const launcher = [
+    "@echo off",
+    `"${process.execPath.replace(/%/g, "%%")}" "%~dp0..\\src\\qoder-hook-wrapper.js"`,
+    "",
+  ].join("\r\n");
+  fs.writeFileSync(path.join(pluginRoot, "hooks", "qoder-otel-plugin.cmd"), launcher);
+  command = "hooks\\qoder-otel-plugin.cmd";
+}
 const hooks = {};
 for (const event of ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "Stop", "SessionEnd"]) hooks[event] = [{ matcher: "", hooks: [{ type: "command", command, timeout: 30, outputByteLimit: 200000 }] }];
 writeJson(path.join(pluginRoot, "hooks.json"), { hooks });
@@ -76,7 +84,9 @@ installedV2.plugins[pluginId] = [{
 writeJson(installedV2File, installedV2);
 const configFile = path.resolve(opt.configFile || path.join(qoderHome, "gtrace.json"));
 if (opt.writeConfig) { const config = readJson(configFile), headers = { ...(config.headers || {}), ...toMap(opt.headers) }; if (!Object.keys(headers).some(k => k.toLowerCase() === "to-headless")) headers["To-Headless"] = "true"; if (opt.xToken) headers["X-Token"] = opt.xToken; const gtrace = opt.type === "gtrace"; Object.assign(config, { enabled: true, tracePath: opt.tracePath || (gtrace ? "v1/write/otel-llm" : "v1/traces"), metricsPath: opt.metricsPath || (gtrace ? "v1/write/otel-metrics" : "v1/metrics"), headers, resourceAttributes: { ...(config.resourceAttributes || {}), ...toMap(opt.tags) } }); if (opt.endpoint) config.endpoint = opt.endpoint; writeJson(configFile, config); }
-for (const file of [path.join(pluginRoot, "src", "qoder-hook-wrapper.js"), path.join(pluginRoot, "hooks.json"), path.join(pluginRoot, ".qoder-plugin", "plugin.json")]) if (!fs.existsSync(file)) throw new Error(`Verification failed, missing ${file}`);
+const requiredFiles = [path.join(pluginRoot, "src", "qoder-hook-wrapper.js"), path.join(pluginRoot, "hooks.json"), path.join(pluginRoot, ".qoder-plugin", "plugin.json")];
+if (process.platform === "win32") requiredFiles.push(path.join(pluginRoot, "hooks", "qoder-otel-plugin.cmd"));
+for (const file of requiredFiles) if (!fs.existsSync(file)) throw new Error(`Verification failed, missing ${file}`);
 for (const [settingsFile, installedFile] of registries) { if (readJson(settingsFile).enabledPlugins?.[pluginId] !== true || readJson(installedFile).plugins?.[pluginId]?.installPath !== pluginRoot) throw new Error(`Registry verification failed: ${settingsFile}`); }
 if (!readJson(installedV2File).plugins?.[pluginId]?.some(entry => entry.installPath === pluginRoot && entry.version === version)) throw new Error(`Registry verification failed: ${installedV2File}`);
 console.log(`[qoder-otel-plugin] installed and verified: ${pluginRoot}`); console.log(`[qoder-otel-plugin] hooks use Node.js: ${process.execPath}`); if (opt.writeConfig) console.log(`[qoder-otel-plugin] updated config: ${configFile}`); console.log("[qoder-otel-plugin] restart Qoder to reload hooks");
