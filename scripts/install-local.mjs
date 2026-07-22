@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const env = process.env;
@@ -20,6 +21,18 @@ if (Number(process.versions.node.split(".")[0]) < 22) throw new Error(`Node.js >
 const readJson = (file, fallback = {}) => { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return fallback; } };
 const writeJson = (file, data) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(data, null, 2) + "\n"); };
 const toMap = items => Object.fromEntries(items.map(item => { const i = item.indexOf("="); if (i < 1) throw new Error(`Expected KEY=VALUE: ${item}`); return [item.slice(0, i), item.slice(i + 1)]; }));
+const isQoderRunningOnMac = () => {
+  if (process.platform !== "darwin") return false;
+  try {
+    const commands = execFileSync("ps", ["-axo", "command="], { encoding: "utf8" });
+    return commands.split(/\r?\n/).some(command =>
+      /\/(?:Qoder|QoderCN)\.app\/Contents\/MacOS\//.test(command)
+      || /(?:^|[ /])(?:Qoder|QoderCN)(?:\s|$)/.test(command)
+    );
+  } catch {
+    return false;
+  }
+};
 let variant = String(opt.variant).toLowerCase();
 if (["qoder-cn"].includes(variant)) variant = "cn"; if (["qoder", "non-cn", "intl", "international"].includes(variant)) variant = "global";
 if (variant === "auto" || !variant) variant = env.QODER_HOME ? (/(?:^|[\\/])\.?qoder-cn$/.test(env.QODER_HOME) ? "cn" : "global") : (fs.existsSync(path.join(userHome, ".qoder")) && !fs.existsSync(path.join(userHome, ".qoder-cn")) ? "global" : "cn");
@@ -27,13 +40,19 @@ if (!["cn", "global"].includes(variant)) throw new Error(`Unsupported --variant:
 if (!["gtrace", "otlp", "otel"].includes(opt.type)) throw new Error(`Unsupported --type: ${opt.type}`);
 
 const qoderHome = path.resolve(env.QODER_HOME || path.join(userHome, variant === "global" ? ".qoder" : ".qoder-cn"));
+const appDirectoryName = variant === "global" ? "Qoder" : "QoderCN";
 const defaultConfigRoot = process.platform === "win32"
-  ? path.join(env.APPDATA || path.join(userHome, "AppData", "Roaming"), variant === "global" ? "Qoder" : "QoderCN")
-  : path.join(userHome, ".config", variant === "global" ? "Qoder" : "QoderCN");
+  ? path.join(env.APPDATA || path.join(userHome, "AppData", "Roaming"), appDirectoryName)
+  : process.platform === "darwin"
+    ? path.join(userHome, "Library", "Application Support", appDirectoryName)
+    : path.join(userHome, ".config", appDirectoryName);
 const configRoot = path.resolve(env.QODER_CONFIG_ROOT || defaultConfigRoot);
 const version = readJson(path.join(repoRoot, "package.json")).version;
 const marketplace = env.MARKETPLACE_NAME || "qoder-marketplace", pluginName = env.PLUGIN_NAME || "qoder-otel-plugin", legacyName = env.LEGACY_PLUGIN_NAME || "qoder-otel-probe";
 const pluginParent = path.join(qoderHome, "plugins", "cache", marketplace, pluginName), pluginRoot = path.join(pluginParent, version);
+if (isQoderRunningOnMac()) {
+  throw new Error("Qoder is running. Quit Qoder completely before installing, then retry. This prevents macOS from writing stale plugin state back over the installer changes.");
+}
 if (!opt.keepOld && fs.existsSync(pluginParent)) for (const entry of fs.readdirSync(pluginParent, { withFileTypes: true })) if (entry.isDirectory() && entry.name !== version) fs.rmSync(path.join(pluginParent, entry.name), { recursive: true, force: true });
 fs.rmSync(path.join(qoderHome, "plugins", "cache", marketplace, legacyName), { recursive: true, force: true }); fs.mkdirSync(pluginRoot, { recursive: true });
 for (const item of ["src", "hooks", ".qoder-plugin"]) { fs.rmSync(path.join(pluginRoot, item), { recursive: true, force: true }); fs.cpSync(path.join(repoRoot, item), path.join(pluginRoot, item), { recursive: true }); }
@@ -83,10 +102,27 @@ installedV2.plugins[pluginId] = [{
 }];
 writeJson(installedV2File, installedV2);
 const configFile = path.resolve(opt.configFile || path.join(qoderHome, "gtrace.json"));
-if (opt.writeConfig) { const config = readJson(configFile), headers = { ...(config.headers || {}), ...toMap(opt.headers) }; if (!Object.keys(headers).some(k => k.toLowerCase() === "to-headless")) headers["To-Headless"] = "true"; if (opt.xToken) headers["X-Token"] = opt.xToken; const gtrace = opt.type === "gtrace"; Object.assign(config, { enabled: true, tracePath: opt.tracePath || (gtrace ? "v1/write/otel-llm" : "v1/traces"), metricsPath: opt.metricsPath || (gtrace ? "v1/write/otel-metrics" : "v1/metrics"), headers, resourceAttributes: { ...(config.resourceAttributes || {}), ...toMap(opt.tags) } }); if (opt.endpoint) config.endpoint = opt.endpoint; writeJson(configFile, config); }
 const requiredFiles = [path.join(pluginRoot, "src", "qoder-hook-wrapper.js"), path.join(pluginRoot, "hooks.json"), path.join(pluginRoot, ".qoder-plugin", "plugin.json")];
 if (process.platform === "win32") requiredFiles.push(path.join(pluginRoot, "hooks", "qoder-otel-plugin.cmd"));
 for (const file of requiredFiles) if (!fs.existsSync(file)) throw new Error(`Verification failed, missing ${file}`);
 for (const [settingsFile, installedFile] of registries) { if (readJson(settingsFile).enabledPlugins?.[pluginId] !== true || readJson(installedFile).plugins?.[pluginId]?.installPath !== pluginRoot) throw new Error(`Registry verification failed: ${settingsFile}`); }
 if (!readJson(installedV2File).plugins?.[pluginId]?.some(entry => entry.installPath === pluginRoot && entry.version === version)) throw new Error(`Registry verification failed: ${installedV2File}`);
+// Keep runtime configuration as the final persistent installer write. On macOS,
+// plugin registration can otherwise re-apply an older in-memory auth/config state.
+if (opt.writeConfig) {
+  const config = readJson(configFile), headers = { ...(config.headers || {}), ...toMap(opt.headers) };
+  if (!Object.keys(headers).some(k => k.toLowerCase() === "to-headless")) headers["To-Headless"] = "true";
+  if (opt.xToken) headers["X-Token"] = opt.xToken;
+  const gtrace = opt.type === "gtrace";
+  Object.assign(config, {
+    enabled: true,
+    tracePath: opt.tracePath || (gtrace ? "v1/write/otel-llm" : "v1/traces"),
+    metricsPath: opt.metricsPath || (gtrace ? "v1/write/otel-metrics" : "v1/metrics"),
+    headers,
+    resourceAttributes: { ...(config.resourceAttributes || {}), ...toMap(opt.tags) },
+  });
+  if (opt.endpoint) config.endpoint = opt.endpoint;
+  writeJson(configFile, config);
+  if (readJson(configFile).enabled !== true) throw new Error(`Config verification failed: ${configFile}`);
+}
 console.log(`[qoder-otel-plugin] installed and verified: ${pluginRoot}`); console.log(`[qoder-otel-plugin] hooks use Node.js: ${process.execPath}`); if (opt.writeConfig) console.log(`[qoder-otel-plugin] updated config: ${configFile}`); console.log("[qoder-otel-plugin] restart Qoder to reload hooks");

@@ -45,10 +45,10 @@ Local state and logs:
 
 Path layout by variant:
 
-| Variant | Qoder home | Config root |
-| --- | --- | --- |
-| `cn` | `~/.qoder-cn` | `~/.config/QoderCN` |
-| `global` | `~/.qoder` | `~/.config/Qoder` |
+| Variant | Qoder home | Linux config root | macOS config root | Windows config root |
+| --- | --- | --- | --- | --- |
+| `cn` | `~/.qoder-cn` | `~/.config/QoderCN` | `~/Library/Application Support/QoderCN` | `%APPDATA%\\QoderCN` |
+| `global` | `~/.qoder` | `~/.config/Qoder` | `~/Library/Application Support/Qoder` | `%APPDATA%\\Qoder` |
 
 Runtime files are stored under `<QODER_HOME>`:
 

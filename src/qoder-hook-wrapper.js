@@ -22,7 +22,7 @@ const HOOK_LOG = QODER_LAYOUT.hookLogFile;
 const STATE_DIR = QODER_LAYOUT.stateDir;
 const UPLOAD_MARKER_DIR = path.join(STATE_DIR, "uploads");
 const QODER_GTRACE_CONFIG = QODER_LAYOUT.globalConfigFile;
-const PLUGIN_VERSION = "0.2.0";
+const PLUGIN_VERSION = "0.2.1";
 const UPLOAD_CLAIM_TTL_MS = 10 * 60 * 1000;
 
 function randomTraceId() {

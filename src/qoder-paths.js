@@ -50,15 +50,26 @@ function inferVariantFromPluginRoot(pluginRoot) {
   return undefined;
 }
 
-function inferVariantFromFileSystem(home) {
+function configRootForPlatform(home, variant, platform, env = {}) {
+  const appDirectoryName = variant === "cn" ? "QoderCN" : "Qoder";
+  if (platform === "win32") {
+    return path.join(env.APPDATA ?? path.join(home, "AppData", "Roaming"), appDirectoryName);
+  }
+  if (platform === "darwin") {
+    return path.join(home, "Library", "Application Support", appDirectoryName);
+  }
+  return path.join(home, ".config", appDirectoryName);
+}
+
+function inferVariantFromFileSystem(home, platform, env) {
   const hasCnHome = exists(path.join(home, ".qoder-cn"));
   const hasGlobalHome = exists(path.join(home, ".qoder"));
   if (hasCnHome && !hasGlobalHome) return "cn";
   if (hasGlobalHome && !hasCnHome) return "global";
   if (hasCnHome && hasGlobalHome) return "cn";
 
-  const hasCnConfig = exists(path.join(home, ".config", "QoderCN"));
-  const hasGlobalConfig = exists(path.join(home, ".config", "Qoder"));
+  const hasCnConfig = exists(configRootForPlatform(home, "cn", platform, env));
+  const hasGlobalConfig = exists(configRootForPlatform(home, "global", platform, env));
   if (hasCnConfig && !hasGlobalConfig) return "cn";
   if (hasGlobalConfig && !hasCnConfig) return "global";
   if (hasCnConfig && hasGlobalConfig) return "cn";
@@ -69,6 +80,7 @@ function inferVariantFromFileSystem(home) {
 export function resolveQoderLayout(options = {}) {
   const env = options.env ?? process.env;
   const home = options.home ?? env.HOME ?? os.homedir();
+  const platform = options.platform ?? process.platform;
   const explicitQoderHome = options.qoderHome ?? env.QODER_HOME;
   let variant = normalizeVariant(options.variant ?? env.QODER_OTEL_VARIANT ?? env.QODER_VARIANT ?? env.QODER_CHANNEL);
 
@@ -76,14 +88,11 @@ export function resolveQoderLayout(options = {}) {
     variant =
       inferVariantFromQoderHome(explicitQoderHome)
       ?? inferVariantFromPluginRoot(options.pluginRoot)
-      ?? inferVariantFromFileSystem(home);
+      ?? inferVariantFromFileSystem(home, platform, env);
   }
 
   const qoderHome = explicitQoderHome ?? path.join(home, variant === "cn" ? ".qoder-cn" : ".qoder");
-  const platform = options.platform ?? process.platform;
-  const defaultConfigRoot = platform === "win32"
-    ? path.join(env.APPDATA ?? path.join(home, "AppData", "Roaming"), variant === "cn" ? "QoderCN" : "Qoder")
-    : path.join(home, ".config", variant === "cn" ? "QoderCN" : "Qoder");
+  const defaultConfigRoot = configRootForPlatform(home, variant, platform, env);
   const configRoot = options.configRoot ?? env.QODER_CONFIG_ROOT ?? defaultConfigRoot;
   const localConfigDirName = variant === "cn" ? ".qoder-cn" : ".qoder";
   const localDbCandidates = uniquePaths([

@@ -116,6 +116,18 @@ resolve_qoder_home() {
 
 resolve_config_root() {
   local variant="$1"
+  if [[ -n "${QODER_CONFIG_ROOT:-}" ]]; then
+    printf '%s' "$QODER_CONFIG_ROOT"
+    return 0
+  fi
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    if [[ "$variant" == "global" ]]; then
+      printf '%s' "$USER_HOME/Library/Application Support/Qoder"
+    else
+      printf '%s' "$USER_HOME/Library/Application Support/QoderCN"
+    fi
+    return 0
+  fi
   if [[ "$variant" == "global" ]]; then
     printf '%s' "$USER_HOME/.config/Qoder"
   else
@@ -125,11 +137,19 @@ resolve_config_root() {
 
 is_qoder_running() {
   if command -v pgrep >/dev/null 2>&1; then
-    if pgrep -af 'Qoder|qoder' >/dev/null 2>&1; then
+    if pgrep -f '/(Qoder|QoderCN)\.app/Contents/MacOS/|(^|/)(Qoder|QoderCN|qoder)([[:space:]]|$)' >/dev/null 2>&1; then
       return 0
     fi
   fi
   return 1
+}
+
+require_qoder_stopped_on_macos() {
+  if [[ "$(uname -s)" == "Darwin" ]] && is_qoder_running; then
+    echo "Qoder is running. Quit Qoder completely before installing, then retry." >&2
+    echo "This prevents macOS from writing stale plugin state back over the installer changes." >&2
+    exit 1
+  fi
 }
 
 usage() {
@@ -139,7 +159,7 @@ Usage:
 
 Options:
   --type         Config preset. Default: otlp. Values: gtrace, otlp.
-  --variant      Qoder layout. `cn` uses ~/.qoder-cn and ~/.config/QoderCN. `global` uses ~/.qoder and ~/.config/Qoder. Default: auto.
+  --variant      Qoder channel/layout. Platform-specific desktop config roots are resolved automatically. Default: auto.
   --endpoint     Receiver base URL, for example https://llm-openway.guance.com.
   --x-token      Dataway/GTrace X-Token. Written to gtrace.json as header X-Token.
   --trace-path   Trace route. Overrides the selected type default.
@@ -152,6 +172,7 @@ Options:
 
 Environment:
   QODER_HOME          Qoder home. Overrides --variant derived home.
+  QODER_CONFIG_ROOT   Qoder desktop config root. Overrides the platform default.
   QODER_OTEL_NODE     Node.js executable path when node is not in PATH
   QODER_OTEL_TYPE     Same as --type
   QODER_OTEL_VARIANT  Same as --variant
@@ -262,7 +283,10 @@ SHARED_INSTALLED_PLUGINS_FILE="$SHARED_PLUGIN_REGISTRY_DIR/installed_plugins.jso
 QODER_PLUGIN_REGISTRY_DIR="$QODER_HOME/plugins"
 QODER_SETTINGS_FILE="$QODER_HOME/settings.json"
 QODER_INSTALLED_PLUGINS_FILE="$QODER_PLUGIN_REGISTRY_DIR/installed_plugins.json"
+QODER_INSTALLED_PLUGINS_V2_FILE="$QODER_PLUGIN_REGISTRY_DIR/installed_plugins_v2.json"
 CONFIG_FILE="${CONFIG_FILE:-$QODER_HOME/gtrace.json}"
+
+require_qoder_stopped_on_macos
 
 case "$INSTALL_TYPE" in
   gtrace)
@@ -396,56 +420,46 @@ for (let index = 0; index < registryFiles.length; index += 2) {
 }
 NODE
 
-if [[ "$WRITE_CONFIG" -eq 1 ]]; then
-  mkdir -p "$(dirname "$CONFIG_FILE")"
-  "$NODE_BIN" - "$CONFIG_FILE" "$ENDPOINT" "$TRACE_PATH" "$METRICS_PATH" "$X_TOKEN" "${HEADERS[@]}" -- "${TAGS[@]}" <<'NODE'
+"$NODE_BIN" - "$QODER_INSTALLED_PLUGINS_V2_FILE" "$MARKETPLACE_NAME" "$PLUGIN_NAME" "$LEGACY_PLUGIN_NAME" "$PLUGIN_ROOT" "$VERSION" <<'NODE'
 const fs = require("fs");
-const [configFile, endpoint, tracePath, metricsPath, xToken, ...rest] = process.argv.slice(2);
-const sep = rest.indexOf("--");
-const headersArgs = sep >= 0 ? rest.slice(0, sep) : rest;
-const tagArgs = sep >= 0 ? rest.slice(sep + 1) : [];
-let current = {};
+const path = require("path");
+const [installedV2File, marketplaceName, pluginName, legacyPluginName, pluginRoot, version] = process.argv.slice(2);
+const pluginId = `${pluginName}@${marketplaceName}`;
+const legacyPluginId = `${legacyPluginName}@${marketplaceName}`;
+let installed = { version: 2, plugins: {} };
 try {
-  current = JSON.parse(fs.readFileSync(configFile, "utf8"));
+  installed = JSON.parse(fs.readFileSync(installedV2File, "utf8"));
 } catch {}
-const headers = { ...(current.headers || {}) };
-if (!Object.keys(headers).some((key) => key.toLowerCase() === "to-headless")) {
-  headers["To-Headless"] = "true";
-}
-if (xToken) headers["X-Token"] = xToken;
-for (const item of headersArgs) {
-  const index = item.indexOf("=");
-  if (index > 0) headers[item.slice(0, index)] = item.slice(index + 1);
-}
-const resourceAttributes = { ...(current.resourceAttributes || {}) };
-for (const item of tagArgs) {
-  const index = item.indexOf("=");
-  if (index > 0) resourceAttributes[item.slice(0, index)] = item.slice(index + 1);
-}
-const next = {
-  ...current,
+installed.version = 2;
+installed.plugins = { ...(installed.plugins || {}) };
+const existingEntries = Array.isArray(installed.plugins[pluginId]) ? installed.plugins[pluginId] : [];
+const existing = existingEntries.find((entry) => entry?.scope === "user") || existingEntries[0] || {};
+const now = new Date().toISOString();
+delete installed.plugins[legacyPluginId];
+installed.plugins[pluginId] = [{
+  ...existing,
+  scope: "user",
+  installPath: pluginRoot,
+  version,
+  source: existing.source || "marketplace",
   enabled: true,
-  ...(endpoint ? { endpoint } : {}),
-  ...(tracePath ? { tracePath } : {}),
-  ...(metricsPath ? { metricsPath } : {}),
-  ...(Object.keys(headers).length ? { headers } : {}),
-  ...(Object.keys(resourceAttributes).length ? { resourceAttributes } : {}),
-};
-fs.writeFileSync(configFile, JSON.stringify(next, null, 2) + "\n");
+  installedAt: existing.installedAt || now,
+  lastUpdated: now,
+}];
+fs.mkdirSync(path.dirname(installedV2File), { recursive: true });
+fs.writeFileSync(installedV2File, JSON.stringify(installed, null, 2) + "\n");
 NODE
-fi
 
-"$NODE_BIN" - "$PLUGIN_ROOT" "$CONFIG_FILE" "$PLUGIN_NAME" "$MARKETPLACE_NAME" "$VERSION" "$WRITE_CONFIG" "$QODER_SETTINGS_FILE" "$QODER_INSTALLED_PLUGINS_FILE" "$SHARED_SETTINGS_FILE" "$SHARED_INSTALLED_PLUGINS_FILE" <<'NODE'
+"$NODE_BIN" - "$PLUGIN_ROOT" "$PLUGIN_NAME" "$MARKETPLACE_NAME" "$VERSION" "$QODER_INSTALLED_PLUGINS_V2_FILE" "$QODER_SETTINGS_FILE" "$QODER_INSTALLED_PLUGINS_FILE" "$SHARED_SETTINGS_FILE" "$SHARED_INSTALLED_PLUGINS_FILE" <<'NODE'
 const fs = require("fs");
 const path = require("path");
 
 const [
   pluginRoot,
-  configFile,
   pluginName,
   marketplaceName,
   version,
-  writeConfigFlag,
+  installedV2File,
   ...registryFiles
 ] = process.argv.slice(2);
 
@@ -505,11 +519,15 @@ for (let index = 0; index < registryFiles.length; index += 2) {
   }
 }
 
-if (String(writeConfigFlag) === "1") {
-  const runtimeConfig = readJson(configFile);
-  if (runtimeConfig.enabled !== true) {
-    fail(`runtime config ${configFile} is not enabled`);
-  }
+const installedV2State = readJson(installedV2File);
+const installedV2Entries = installedV2State.plugins?.[pluginId];
+if (!Array.isArray(installedV2Entries) || !installedV2Entries.some((entry) =>
+  entry?.scope === "user"
+  && entry?.enabled === true
+  && entry?.installPath === pluginRoot
+  && entry?.version === version
+)) {
+  fail(`plugin ${pluginId} missing or stale in ${installedV2File}`);
 }
 
 console.log(`[qoder-otel-plugin] verified plugin files: ${pluginRoot}`);
@@ -521,14 +539,59 @@ for (let index = 0; index < registryFiles.length; index += 2) {
     console.log(`[qoder-otel-plugin] verified installed plugin record: ${installedPluginsFile}`);
   }
 }
-if (String(writeConfigFlag) === "1") {
-  console.log(`[qoder-otel-plugin] verified runtime config: ${configFile}`);
-}
+console.log(`[qoder-otel-plugin] verified v2 installed plugin record: ${installedV2File}`);
 NODE
+
+# Keep runtime configuration as the final persistent installer write. On macOS,
+# plugin registration can otherwise re-apply an older in-memory auth/config state.
+if [[ "$WRITE_CONFIG" -eq 1 ]]; then
+  mkdir -p "$(dirname "$CONFIG_FILE")"
+  "$NODE_BIN" - "$CONFIG_FILE" "$ENDPOINT" "$TRACE_PATH" "$METRICS_PATH" "$X_TOKEN" "${HEADERS[@]}" -- "${TAGS[@]}" <<'NODE'
+const fs = require("fs");
+const [configFile, endpoint, tracePath, metricsPath, xToken, ...rest] = process.argv.slice(2);
+const sep = rest.indexOf("--");
+const headersArgs = sep >= 0 ? rest.slice(0, sep) : rest;
+const tagArgs = sep >= 0 ? rest.slice(sep + 1) : [];
+let current = {};
+try {
+  current = JSON.parse(fs.readFileSync(configFile, "utf8"));
+} catch {}
+const headers = { ...(current.headers || {}) };
+if (!Object.keys(headers).some((key) => key.toLowerCase() === "to-headless")) {
+  headers["To-Headless"] = "true";
+}
+if (xToken) headers["X-Token"] = xToken;
+for (const item of headersArgs) {
+  const index = item.indexOf("=");
+  if (index > 0) headers[item.slice(0, index)] = item.slice(index + 1);
+}
+const resourceAttributes = { ...(current.resourceAttributes || {}) };
+for (const item of tagArgs) {
+  const index = item.indexOf("=");
+  if (index > 0) resourceAttributes[item.slice(0, index)] = item.slice(index + 1);
+}
+const next = {
+  ...current,
+  enabled: true,
+  ...(endpoint ? { endpoint } : {}),
+  ...(tracePath ? { tracePath } : {}),
+  ...(metricsPath ? { metricsPath } : {}),
+  ...(Object.keys(headers).length ? { headers } : {}),
+  ...(Object.keys(resourceAttributes).length ? { resourceAttributes } : {}),
+};
+fs.writeFileSync(configFile, JSON.stringify(next, null, 2) + "\n");
+const persisted = JSON.parse(fs.readFileSync(configFile, "utf8"));
+if (persisted.enabled !== true) {
+  throw new Error(`runtime config ${configFile} is not enabled`);
+}
+console.log(`[qoder-otel-plugin] verified runtime config: ${configFile}`);
+NODE
+fi
 
 log "installed plugin to $PLUGIN_ROOT"
 log "updated plugin registry: $QODER_SETTINGS_FILE"
 log "updated installed plugins: $QODER_INSTALLED_PLUGINS_FILE"
+log "updated v2 installed plugins: $QODER_INSTALLED_PLUGINS_V2_FILE"
 log "updated shared plugin registry: $SHARED_SETTINGS_FILE"
 log "updated shared installed plugins: $SHARED_INSTALLED_PLUGINS_FILE"
 if [[ "$KEEP_OLD" -eq 0 ]]; then

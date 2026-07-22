@@ -19,8 +19,8 @@ It reads Qoder hook input and transcript files, enriches them with local Qoder S
 
 - Linux/macOS/Windows
 - Qoder local data layout:
-  - CN: `~/.qoder-cn` and `~/.config/QoderCN` (Windows: `%APPDATA%\\QoderCN`)
-  - non-CN: `~/.qoder` and `~/.config/Qoder` (Windows: `%APPDATA%\\Qoder`)
+  - CN: `~/.qoder-cn` plus Linux `~/.config/QoderCN`, macOS `~/Library/Application Support/QoderCN`, or Windows `%APPDATA%\\QoderCN`
+  - non-CN: `~/.qoder` plus Linux `~/.config/Qoder`, macOS `~/Library/Application Support/Qoder`, or Windows `%APPDATA%\\Qoder`
 - Node.js >= 22.5
 
 ## Install For Users
@@ -56,7 +56,7 @@ curl -fsSL https://github.com/GuanceCloud/qoder-otel-plugin/releases/latest/down
   | bash -s -- latest --type gtrace --variant cn --no-config
 ```
 
-Restart Qoder after install or upgrade so hooks are reloaded.
+Quit Qoder before installing on macOS. This prevents the running app from writing stale plugin state back over the installer changes. Restart Qoder after install or upgrade so hooks are reloaded.
 
 Windows release install (PowerShell):
 
@@ -152,8 +152,8 @@ QODER_HOME=/path/to/.qoder bash scripts/install-local.sh
 
 Variant selection:
 
-- `--variant cn`: uses `~/.qoder-cn` and `~/.config/QoderCN`
-- `--variant global`: uses `~/.qoder` and `~/.config/Qoder`
+- `--variant cn`: uses `~/.qoder-cn` and the platform-specific `QoderCN` desktop config root listed above
+- `--variant global`: uses `~/.qoder` and the platform-specific `Qoder` desktop config root listed above
 - `--variant auto`: infers from `QODER_HOME` or existing local directories, defaulting to `cn` when ambiguous
 
 ## Build Release
