@@ -31,10 +31,10 @@ do
 done
 
 tar -C "$WORK_DIR" -czf "$DIST_DIR/$NAME.tar.gz" "$NAME"
-sha256sum "$DIST_DIR/$NAME.tar.gz" > "$DIST_DIR/$NAME.tar.gz.sha256"
+(cd "$DIST_DIR" && sha256sum "$NAME.tar.gz" > "$NAME.tar.gz.sha256")
 
 cp "$DIST_DIR/$NAME.tar.gz" "$DIST_DIR/qoder-otel-plugin.tar.gz"
-cp "$DIST_DIR/$NAME.tar.gz.sha256" "$DIST_DIR/qoder-otel-plugin.tar.gz.sha256"
+(cd "$DIST_DIR" && sha256sum qoder-otel-plugin.tar.gz > qoder-otel-plugin.tar.gz.sha256)
 rm -f "$DIST_DIR/install-release.sh"
 cp "$REPO_ROOT/scripts/install.sh" "$DIST_DIR/install.sh"
 cp "$REPO_ROOT/scripts/install.ps1" "$DIST_DIR/install.ps1"
